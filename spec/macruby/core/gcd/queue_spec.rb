@@ -23,6 +23,11 @@ if MACOSX_VERSION >= 10.6
 
         q3 = Dispatch::Queue.concurrent(:high)
         q3.should be_kind_of(Dispatch::Queue)
+        
+        if MACOSX_VERSION >= 10.7
+          q3 = Dispatch::Queue.concurrent(:background)
+          q3.should be_kind_of(Dispatch::Queue)
+        end
       end
 
       it "raises an ArgumentError if the argument is not a valid priority" do

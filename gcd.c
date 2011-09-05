@@ -103,6 +103,11 @@ static ID high_priority_id;
 static ID low_priority_id;
 static ID default_priority_id;
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+static ID qBackgroundPriority;
+static ID background_priority_id;
+#endif
+
 static VALUE cGroup;
 static VALUE cSource;
 static VALUE cSemaphore;
@@ -213,6 +218,10 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
  *  will perform actions submitted to the high priority queue before any actions 
  *  submitted to the default or low queues, and will only perform actions on the 
  *  low queues if there are no actions queued on the high or default queues.
+ *  When installed on Mac OS 10.7 or later, the +:background+ priority level is 
+ *  available. Actions submitted to this queue will execute on a thread set to 
+ *  background state (via setpriority(2)), which throttles disk I/O and sets the 
+ *  thread's scheduling priority to the lowest value possible.
  *
  *     gcdq = Dispatch::Queue.concurrent(:high)
  *     5.times { gcdq.async { print 'foo' } }
@@ -233,6 +242,11 @@ rb_queue_get_concurrent(VALUE klass, SEL sel, int argc, VALUE *argv)
 	else if (id == low_priority_id) {
 	    return qLowPriority;
 	}
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+	else if (id == background_priority_id) {
+	    return qBackgroundPriority;
+	}
+#endif
 	else if (id != default_priority_id) {
 	    rb_raise(rb_eArgError,
 		    "invalid priority `%s' (expected either :low, :default or :high)",
@@ -1180,6 +1194,9 @@ Init_Dispatch(void)
     high_priority_id = rb_intern("high");
     low_priority_id = rb_intern("low");
     default_priority_id = rb_intern("default");
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+    background_priority_id = rb_intern("background");
+#endif
 
 /*
  *  Grand Central Dispatch (GCD) is a novel approach to multicore computing
@@ -1263,6 +1280,10 @@ Init_Dispatch(void)
 		DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), true);
     qLowPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
 		DISPATCH_QUEUE_PRIORITY_LOW, 0), true);
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+qBackgroundPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
+		DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), true);
+#endif
     
     qMain = rb_queue_from_dispatch(dispatch_get_main_queue(), true);
     rb_objc_define_method(rb_singleton_class(qMain), "run", rb_main_queue_run,
