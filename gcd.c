@@ -222,6 +222,11 @@ rb_queue_from_dispatch(dispatch_queue_t dq, bool should_retain)
  *  available. Actions submitted to this queue will execute on a thread set to 
  *  background state (via setpriority(2)), which throttles disk I/O and sets the 
  *  thread's scheduling priority to the lowest value possible.
+ * 
+ *  On Mac OS 10.7 and later, passing a string to +concurrent+ creates a new 
+ *  concurrent queue with the specified string as its label. Private concurrent queues 
+ *  created this way are identical to private FIFO queues created with +new+, except 
+ *  for the fact that they execute their blocks in parallel.
  *
  *     gcdq = Dispatch::Queue.concurrent(:high)
  *     5.times { gcdq.async { print 'foo' } }
@@ -235,6 +240,16 @@ rb_queue_get_concurrent(VALUE klass, SEL sel, int argc, VALUE *argv)
     VALUE priority;
     rb_scan_args(argc, argv, "01", &priority);
     if (!NIL_P(priority)) {
+	
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+	if (TYPE(priority) == T_STRING) {
+	    return rb_queue_from_dispatch(
+		dispatch_queue_create(RSTRING_PTR(priority), DISPATCH_QUEUE_CONCURRENT), 1);
+	} else if (TYPE(priority) != T_SYMBOL) {
+		rb_raise(rb_eTypeError, "must pass a symbol or string to `concurrent`");
+	}
+#endif
+	
 	ID id = rb_to_id(priority);
 	if (id == high_priority_id) {
 	    return qHighPriority;
@@ -1281,7 +1296,7 @@ Init_Dispatch(void)
     qLowPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
 		DISPATCH_QUEUE_PRIORITY_LOW, 0), true);
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
-qBackgroundPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
+    qBackgroundPriority = rb_queue_from_dispatch(dispatch_get_global_queue(
 		DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), true);
 #endif
     
