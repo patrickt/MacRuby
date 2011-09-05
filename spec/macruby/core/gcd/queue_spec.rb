@@ -121,6 +121,34 @@ if MACOSX_VERSION >= 10.6
         lambda { @q.sync }.should raise_error(ArgumentError) 
       end
     end
+    
+    if MACOSX_VERSION >= 10.7
+      describe :barrier_async do
+        it "provides a barrier block asynchronously" do
+          @i = ""
+          cq = Dispatch::Queue.concurrent("org.macruby.testing")
+          cq.async { @i += "a" }
+          cq.async { @i += "b" }
+          cq.barrier_async { @i += "c" }
+          sleep 0.1
+          @i.length.should == 3
+          @i[2].should == "c"
+        end
+      end
+      
+      describe :barrier_sync do
+        it "provides a synchronous barrier block" do
+          @i = ""
+          cq = Dispatch::Queue.concurrent("org.macruby.testing")
+          cq.async { @i += "a" }
+          cq.async { @i += "b" }
+          cq.barrier_sync { @i += "c"}
+          @i.length.should == 3
+          @i[2].should == "c"
+        end
+      end
+      
+    end
 
     describe :apply do
       it "accepts a count and a block and yields it that many times, with an index" do

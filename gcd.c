@@ -485,6 +485,76 @@ rb_queue_dispatch_sync(VALUE self, SEL sel)
 
 /* 
  *  call-seq:
+ *    gcdq.barrier_async { @i = 42 }
+ *
+ *  This function is a specialized version of the #async dispatch function. 
+ *  When a block enqueued with barrier_async reaches the front of a private 
+ *  concurrent queue, it waits until all other enqueued blocks to finish executing,
+ *  at which point the block is executed. No blocks submitted after a call to 
+ *  barrier_async will be executed until the enqueued block finishes. It returns 
+ *  immediately.
+ * 
+ *  If the provided queue is not a concurrent private queue, this function behaves 
+ *  identically to the #async function. 
+ * 
+ *  This function is only available on OS X 10.7 and later.
+ *  
+ *     gcdq = Dispatch::Queue.concurrent('org.macruby.documentation')
+ *     @i = ""
+ *     gcdq.async { @i += 'a' }
+ *     gcdq.async { @i += 'b' }
+ *     gcdq.barrier_async { @i += 'c' }
+ *     p @i #=> either prints out 'abc' or 'bac'
+ *
+ */
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+
+static VALUE
+rb_queue_dispatch_barrier_async(VALUE self, SEL sel)
+{
+    rb_vm_block_t *block = get_prepared_block();
+    dispatch_barrier_async_f(RQueue(self)->queue, (void *)block, rb_block_dispatcher);
+    return Qnil;
+}
+
+#endif
+
+/* 
+ *  call-seq:
+ *    gcdq.barrier_async { @i = 42 }
+ *
+ *  This function is identical to the #barrier_async function; however, it blocks 
+ *  until the provided block is executed.
+ * 
+ *  If the provided queue is not a concurrent private queue, this function behaves 
+ *  identically to the #sync function. 
+ * 
+ *  This function is only available on OS X 10.7 and later.
+ *  
+ *     gcdq = Dispatch::Queue.concurrent('org.macruby.documentation')
+ *     @i = ""
+ *     gcdq.async { @i += 'a' }
+ *     gcdq.async { @i += 'b' }
+ *     gcdq.barrier_sync { @i += 'c' } # blocks
+ *     p @i #=> either prints out 'abc' or 'bac'
+ *
+ */
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+
+static VALUE
+rb_queue_dispatch_barrier_sync(VALUE self, SEL sel)
+{
+    rb_vm_block_t *block = get_prepared_block();
+    dispatch_barrier_sync_f(RQueue(self)->queue, (void *)block, rb_block_dispatcher);
+    return Qnil;
+}
+
+#endif
+
+/* 
+ *  call-seq:
  *    gcdq.after(delay) { block }
  *
  *  Runs the passed block after the given delay (in seconds) using
@@ -1285,6 +1355,12 @@ Init_Dispatch(void)
     rb_objc_define_method(cQueue, "after", rb_queue_dispatch_after, 1);
     rb_objc_define_method(cQueue, "label", rb_queue_label, 0); // deprecated
     rb_objc_define_method(cQueue, "to_s", rb_queue_label, 0);
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+    rb_objc_define_method(cQueue, "barrier_async", rb_queue_dispatch_barrier_async, 0);
+    rb_objc_define_method(cQueue, "barrier_sync", rb_queue_dispatch_barrier_sync, 0);
+#endif
+    
     
     rb_queue_finalize_super = rb_objc_install_method2((Class)cQueue,
 	    "finalize", (IMP)rb_queue_finalize);
